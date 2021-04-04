@@ -1,54 +1,96 @@
-const {google} = require('googleapis');
-const keys = require('./keys.json');
+var http = require('http');
+var fs = require('fs');
+var url = require('url');
 
-const client = new google.auth.JWT(keys.client_email, null, keys.private_key, ['https://www.googleapis.com/auth/spreadsheets']);
-
-client.authorize(function(err, tokens){
-    if(err){
-        console.log(err);
-        return;
-    }else{
-        console.log('Connected');
-        gsrun(client);
-    }
-});
-
-async function gsrun(cl){
-
-    const gsapi = google.sheets({version:'v4', auth : cl});
-    const opt = {
-        spreadsheetId: '1EPNuQBDsHkA3rF4LapjHq1An7gklAjBzcWMasC14iNg',
-        range: 'Data!A2:B5'
-    };
-
-    let data = await gsapi.spreadsheets.values.get(opt);
-    let dataArray = data.data.values;
-    
-
-    dataArray.map(function(r){
-        while(r.length<2){
-            r.push('');
-        }
-        return r;
-    });
-
-    console.log(dataArray);
-
-    let newDataArray = dataArray.map(function(r){
-        r.push(r[0] + '-' + r[1]);
-        return r;       
-    });
-
-    const updateOptions = {
-        spreadsheetId: '1EPNuQBDsHkA3rF4LapjHq1An7gklAjBzcWMasC14iNg',
-        range: 'Data!E2',
-        valueInputOption: 'USER_ENTERED',
-        resource: { values: newDataArray}
-    };
-
-    let res = await gsapi.spreadsheets.values.update(updateOptions);
-
-    console.log(res);
-
-    //console.log(newDataArray);
+function templateHTML(title, list, body){
+  return `
+  <!doctype html>
+  <html>
+  <head>
+    <title>WEB1 - ${title}</title>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <h1><a href="/">WEB</a></h1>
+    ${list}
+  ${body}
+  </body>
+  </html>
+  `;
 }
+
+function templatelist(filelist){
+  var list = '<ul>';
+  var i = 0;
+  while(i < filelist.length){
+    list = list + `<li><a href="/?id=${filelist[i]}">${filelist[i]}</a></li>`;
+    i = i+1;
+  }
+  list = list + '</ul>';
+  return list;
+}
+var app =  http.createServer(function(request,response){
+    var _url = request.url;
+    var queryData = url.parse(_url, true).query;
+    var pathname = url.parse(_url, true).pathname;
+
+
+    if(pathname === '/'){
+      if(queryData.id === undefined){
+
+          fs.readdir('./data', function(error, filelist){
+            //console.log(filelist);
+            var title = 'Welcome';
+            var description = 'Hello, Nodejs';
+
+/*
+            var list = `<ol>
+              <li><a href="/?id=HTML">HTML</a></li>
+              <li><a href="/?id=CSS">CSS</a></li>
+              <li><a href="/?id=JavaScript">JavaScript</a></li>
+            </ol>`;
+            */
+            var list = templatelist(filelist);
+            var template = templateHTML(title, list, `<h2>${title}</h2>${description}`);
+            response.writeHead(200);
+            response.end(template);
+          })
+      }else{
+        fs.readdir('./data', function(error, filelist){
+          //console.log(filelist);
+          var title = 'Welcome';
+          var description = 'Hello, Nodejs';
+
+
+        fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
+          var title = queryData.id;
+            var list = templatelist(filelist);
+          var template =
+          templateHTML(title, list, `<h2>${title}</h2>${description}`);
+          response.writeHead(200);
+          response.end(template);
+        });
+      });
+    }
+  }
+    else{
+      response.writeHead(404);
+      response.end('Not Found');
+    }
+  //  console.log(url.parse(_url, true).pathname);
+    /*
+      console.log(queryData.id);
+    if(_url == '/'){
+      title = 'Welcome';
+    }
+    if(_url == '/favicon.ico'){
+      response.writeHead(404);
+      response.end();
+      return;
+    }
+    */
+
+
+    //console.log(__dirname + url);
+});
+app.listen(3000);
